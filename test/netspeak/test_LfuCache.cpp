@@ -3,9 +3,11 @@
 
 #include <boost/test/unit_test.hpp>
 
-#include "netspeak/LfuCache.hpp"
+#include "netspeak/util/LfuCache.hpp"
 
 namespace netspeak {
+
+using namespace util;
 
 typedef std::shared_ptr<std::string> shared_value;
 

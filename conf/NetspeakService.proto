@@ -1,0 +1,142 @@
+syntax = "proto3";
+
+package netspeak.service;
+option java_package = "org.netspeak.service";
+option optimize_for = SPEED;
+
+service NetspeakService {
+
+  rpc Search(SearchRequest) returns (SearchResponse);
+  rpc GetCorpora(CorporaRequest) returns (CorporaResponse);
+
+  // QUESTION: Request for internal properties (e.g. to implement a dashboard) ?
+}
+
+message SearchRequest {
+  string query = 1;
+  /// The key of the corpus on which the search query will be executed.
+  /// This key has to be the key of one of the supported corporas.
+  string corpus = 2;
+  /// The maximum number of phrases returned.
+  ///
+  /// If this value is unset (or set to 0), no phrases will be returned.
+  ///
+  /// Netspeak will try to answer queries as fast as possible. If the server
+  /// decides that it will take too long to search for more phrases that match
+  /// the query, it will return an incomplete result set early. More phrases can
+  /// be requests using the max frequency option to pick up where the search
+  /// left off.
+  uint32 max_phrases = 3;
+
+  /// Constraints all of the returned queries have to fulfill.
+  PhraseConstraints phrase_constraints = 4;
+}
+
+message PhraseConstraints {
+  /// All returned phrases must have at most this frequency.
+  ///
+  /// If the max phrase frequency is unset (or set to 0), the returned phrases
+  /// are not bound by frequency.
+  uint64 frequency_max = 1;
+  /// All returned phrases must have at least this many words.
+  ///
+  /// If this value is unset (or set to 0), phrases are not filtered by minimum
+  /// word count.
+  uint32 words_min = 2;
+  /// All returned phrases must have at most this many words.
+  ///
+  /// If this value is unset (or set to 0), phrases are not filtered by maximum
+  /// word count.
+  uint32 words_max = 3;
+}
+
+message Phrase {
+
+  message Word {
+
+    enum Tag {
+      WORD = 0;
+      WORD_FOR_QMARK = 1;
+      WORD_FOR_STAR = 2;
+      WORD_IN_DICTSET = 3;
+      WORD_IN_ORDERSET = 4;
+      WORD_IN_OPTIONSET = 5;
+      WORD_FOR_PLUS = 6;
+      WORD_FOR_REGEX = 7;
+    }
+
+    /// The type of query token that matched this word.
+    ///
+    /// If there are multiple paths in the query such that this word can be
+    /// matched by more than one token, then the tag will be set to any of the
+    /// tokens' types.
+    Tag tag = 1;
+    /// The text of the word.
+    ///
+    /// Currently, this text is guaranteed to not contain any spaces (ASCII line
+    /// breaks, tab, and normal space).
+    string text = 2;
+  }
+
+  /// The unique id of this phrase.
+  uint64 id = 1;
+  /// The frequency of this phrase in the corpus.
+  uint64 frequency = 2;
+  /// The words of this phrase.
+  repeated Word words = 3;
+}
+
+message SearchResponse {
+
+  message Result {
+    repeated Phrase phrases = 1;
+    /// All words of the query that are not in the corpus.
+    repeated string unknown_words = 2;
+  }
+
+  message Error {
+
+    enum Kind {
+      UNKNOWN = 0;
+
+      INTERNAL_ERROR = 1;
+
+      // Invalid request parameters
+      INVALID_PARAMETER = 100;
+      INVALID_QUERY = 110;
+      INVALID_CORPUS = 111;
+
+
+    }
+
+    /// The kind of error encountered by the server while processing the
+    /// request.
+    Kind kind = 1;
+    /// An optional additional error message.
+    /// This generally only contains (debug) information useful to developers.
+    string message = 2;
+  }
+
+  oneof response {
+    Result result = 1;
+    Error error = 2;
+  }
+}
+
+message CorporaRequest {
+  // empty right now, but might be extended in the future
+}
+
+message Corpus {
+  /// The key of the corpus.
+  string key = 1;
+  /// The internal name of the corpus.
+  string name = 2;
+  /// The ISO 639-1 code of the language of corpus.
+  string language = 3;
+}
+
+message CorporaResponse {
+  /// A list of corpora supported by this Netspeak service.
+  repeated Corpus corpora = 1;
+}

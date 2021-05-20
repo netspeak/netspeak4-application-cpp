@@ -1,12 +1,17 @@
 #ifndef NETSPEAK_PROPERTIES_HPP
 #define NETSPEAK_PROPERTIES_HPP
 
-#include <map>
-#include <string>
+#include "netspeak/util/Config.hpp"
 
 namespace netspeak {
 
-class Properties {
+class Properties : public util::Config {
+public:
+  Properties() : util::Config() {}
+  Properties(const std::string& file_name) : util::Config(file_name) {}
+  Properties(std::initializer_list<util::Config::initializer_list_type> list)
+      : util::Config(list) {}
+
 public:
   // cache properties
   static const std::string cache_size;
@@ -48,12 +53,8 @@ public:
   // regex vocabulary properties
   static const std::string regex_vocabulary_size;
   static const std::string regex_vocabulary_value_type;
-
-  typedef std::map<std::string, std::string> Map;
-
-  static bool contains(const Map& config, const std::string& key);
 };
 
 } // namespace netspeak
 
-#endif // NETSPEAK_PROPERTIES_HPP
+#endif

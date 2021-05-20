@@ -8,6 +8,8 @@ Cpp11BracedListStyle: false
 
 AllowShortIfStatementsOnASingleLine: false
 AllowShortFunctionsOnASingleLine: Empty
+AlwaysBreakTemplateDeclarations: Yes
+FixNamespaceComments: true
 
 IncludeBlocks: Regroup
 IncludeCategories:

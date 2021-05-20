@@ -10,13 +10,12 @@
 
 #include "antlr4-runtime.h"
 #include "antlr4/QueryErrorHandler.hpp"
-#include "antlr4/RawQueryListener.hpp"
 #include "antlr4/generated/QueryLexer.h"
 #include "antlr4/generated/QueryParser.h"
+#include "antlr4/parse.hpp"
 
 #include "netspeak/Dictionaries.hpp"
 #include "netspeak/error.hpp"
-#include "netspeak/generated/NetspeakMessages.pb.h"
 
 using namespace antlr4;
 
@@ -40,9 +39,8 @@ BOOST_AUTO_TEST_CASE(test_detection) {
   for (auto file = files.begin(); file != files.end(); file++) {
     std::ifstream inputStream(*file, std::ios::in);
 
-    std::string read;
-
     while (inputStream.peek() != -1) {
+      std::string read;
       std::getline(inputStream, read);
 
       size_t pos = read.find("\t");
@@ -53,8 +51,10 @@ BOOST_AUTO_TEST_CASE(test_detection) {
       QueryLexer lexer(&input);
       antlr4::CommonTokenStream tokens(&lexer);
       QueryParser parser(&tokens);
+
+      antlr4::QueryErrorHandler error_handler;
       parser.removeErrorListeners();
-      parser.addErrorListener(&antlr4::QueryErrorHandler::INSTANCE);
+      parser.addErrorListener(&error_handler);
 
       std::string actual;
       try {
@@ -65,6 +65,11 @@ BOOST_AUTO_TEST_CASE(test_detection) {
       }
 
       BOOST_REQUIRE_EQUAL(actual, expected);
+
+      if (actual != "FAIL") {
+        // it's a valid query, so let's test the parse method
+        BOOST_REQUIRE_NO_THROW(antlr4::parse_query(query));
+      }
     }
     inputStream.close();
   }

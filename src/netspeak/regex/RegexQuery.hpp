@@ -17,7 +17,7 @@ struct RegexUnit {
   /**
    * @brief The type of a unit.
    */
-  enum struct Type { qmark, star, word, char_set, optional_word };
+  enum class Type { QMARK, STAR, WORD, CHAR_SET, OPTIONAL_WORD };
 
   Type type;
   std::u32string value;
@@ -28,19 +28,19 @@ private:
 
 public:
   static RegexUnit qmark() {
-    return RegexUnit(Type::qmark, U"?");
+    return RegexUnit(Type::QMARK, U"?");
   }
   static RegexUnit star() {
-    return RegexUnit(Type::star, U"*");
+    return RegexUnit(Type::STAR, U"*");
   }
   static RegexUnit word(const std::u32string& word) {
-    return RegexUnit(Type::word, word);
+    return RegexUnit(Type::WORD, word);
   }
   static RegexUnit char_set(const std::u32string& characters) {
-    return RegexUnit(Type::char_set, characters);
+    return RegexUnit(Type::CHAR_SET, characters);
   }
   static RegexUnit optional_word(const std::u32string& word) {
-    return RegexUnit(Type::optional_word, word);
+    return RegexUnit(Type::OPTIONAL_WORD, word);
   }
 };
 
@@ -79,7 +79,31 @@ public:
    * Note: All words in the context of a formal language.
    */
   bool accept_all() const {
-    return m_units.size() == 1 && m_units.front().type == RegexUnit::Type::star;
+    return m_units.size() == 1 && m_units.front().type == RegexUnit::Type::STAR;
+  }
+
+  /**
+   * @brief Returns whether this query will accept all non-empty words.
+   *
+   * Note: If the query accepts all words, it also accepts all non-empty words.
+   *
+   * Note: All words in the context of a formal language.
+   */
+  bool accept_all_non_empty() const {
+    if (accept_all()) {
+      return true;
+    }
+    if (m_units.size() == 2) {
+      switch (m_units[0].type) {
+        case RegexUnit::Type::STAR:
+          return m_units[1].type == RegexUnit::Type::QMARK;
+        case RegexUnit::Type::QMARK:
+          return m_units[1].type == RegexUnit::Type::STAR;
+        default:
+          break;
+      }
+    }
+    return false;
   }
 
   /**
@@ -87,7 +111,7 @@ public:
    * can match. If \c UINT32_MAX is returned, the upper bound is essentially
    * infinite. If \c 0 is returned, the query cannot match any word.
    *
-   * Queries which contain \c qmark or \c star units will automatically return
+   * Queries which contain \c QMARK or \c star units will automatically return
    * \c UINT32_MAX .
    *
    * @return uint32_t

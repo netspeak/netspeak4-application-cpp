@@ -9,6 +9,14 @@ It contains methods to create indexes and make queries on Netspeak indexes. The 
 
 ## Getting started
 
+### Docker
+
+If you just want to run Netspeak without having to setup anything, then our Docker image will help you.
+
+```bash
+docker run webis/netspeak:4.1.2 netspeak4 --help
+```
+
 ### Installing dependencies
 
 Before you can compile and run anything, you have to install the dependencies. To do this, simply run:
@@ -17,62 +25,57 @@ Before you can compile and run anything, you have to install the dependencies. T
 sudo bash build/install-dependencies.sh
 ```
 
-This will install, a C++ compiler, build tools, Protobuf tools, and other general dependencies.
+This will install, a C++ compiler, build tools, gRPC, Protobuf tools, and other general dependencies.
 
-One of the dependencies of this project is [Antlr4](https://github.com/antlr/antlr4).
-The Antlr4 compiler and runtime will both be downloaded under `./antlr4/`.
-The runtime will then be built and installed. This process can take a few minutes.
+Some of the dependencies will by compiled from source and might be compiled/installed in parallel causing noticeable stuttering or even freezes for a few seconds. The heaviest dependencies will be installed globally, so they only have to be installed once.
+
+#### CI
+
+The install script will also install some dependencies that are used by other scripts (e.g. the ones that generate Protobuf and ANTLR4 files). If you do not use these scripts (e.g. in CI), then running `sudo bash build/install-dependencies.sh ci` instead will only install the dependencies that are necessary to compile the project.
 
 #### For Windows users
 
 Netspeak 4 is a Linux project. To compile and run it on your system, install WSL with any Linux distribution and run all commands there.
 
-#### For Webis members
-
-Among the dependencies are some Webis-only projects.
-These will be checked out via git in readonly mode.
-If you want to make changes to these projects and see how the affect Netspeak, replace the project folders in `./build/dependencies/` with symbolic links to wherever your pushable version is.
-
 ### Building
 
-To build this project, first generate the `Makefile` using `qmake`, and then run the `make` command:
+This project has a `debug` build and a `release` build. To make/update either one run:
 
 ```bash
-qmake
-make
+# debug build
+bash build/make-debug.sh
+# release build
+bash build/make-release.sh
 ```
 
-(After running `qmake` once, you typically don't have to run it again.)
-
-The Netspeak 4 executable will be `./build/release/netspeak4`. `libnetspeak4.so` is located in the same directory.
+The Netspeak executable can then be found at `build/{debug,release}/netspeak4`.
 
 ### Running tests
 
-First (re)build this project and then run the `./build/run-tests.sh` script:
+Run the following command:
 
 ```bash
-bash ./build/run-tests.sh
+bash build/run-tests.sh
 ```
+
+This will use the `debug` build to run tests.
 
 (It's recommended to do it like this because otherwise the test application might have problems locating its test resources.)
 
 ### Writing code
 
-To write code, open the project in your IDE of choice (e.g. VSCode with the C++ plugin) and start writing! <br>
-(Some IDE's might not support `qmake`, so be sure to run the command at least once yourself.)
+To write code, open the project in your IDE of choice (e.g. VSCode with the C++ plugin) and start typing!
 
-We use `qmake` to generate the `Makefile` from the `.pri` and `.pro` files. Simply run the `qmake` command for this. Some IDEs might not support `qmake`, so be sure to run `qmake` yourself at least once.
-
-If you add new files, be sure to register them in the appropriate `.pri` file (see `./build/targets/`).
-
-If you changed any header files, your build might be outdated even after running `make`. If that's the case, run `make clean` before `make`.
+Keep in mind that new files have to registered in `CMakeLists.txt`.
 
 We use `clang-format` to format our code. If your IDE doesn't support this, you can use the `./build/format-all.sh` script to reformat all source files.
 
 
 ## Using the Netspeak4 CLI
 
-After compiling, you can run `./build/release/netspeak4` which will start a small command line interface for Netspeak.
+After compiling, you can run the Netspeak executable which will start a small command line interface for Netspeak.
+
+The Netspeak CLI aims to be self-documenting, so this section will be brief. To view the full CLI documentation run `netspeak4 --help`. This will list all commands and how to use them.
 
 #### `build`
 
@@ -93,13 +96,18 @@ __If it's too low, the build process will fail.__
 For small indexes a limit for 1024 is sufficient but for larger data sets (>10GB input), be sure it's at least 2048. You can set the limit using the `ulimit` command. <br>
 WSL users: This limit will be reset with every restart of your Linux subsystem.
 
-#### `shell`
 
-After creating an index, you can use `./netspeak4 shell -i "/my-index"` to start up a small interactive shell. The shell will take any Netspeak query and display a textual representation of the result set.
+## Logging
 
-#### `regex`
+The `serve` and `proxy` sub-command both support logging. This means that they will log every request they receive and every error produced.
 
-After creating an index, you can use `./netspeak4 regex -i "/my-index/regex-list/regex-vocab"` to start up a small interactive shell that will only return the results of the regex index. The shell will take any regex query and display the results.
+### Tracking ID
+
+Tracking is implemented via optional client metadata. Clients can provide a number to track their session to help improve the service.
+
+The tracking number has to be provided as client metadata using the key `netspeak-tracking-id`. The value of that key has to be a 128bit hexadecimal number matching the following regex: `^[0-9A-Fa-f]{32}$`.
+
+There are no requirements for the actual number but it is recommended for them to be randomly generated.
 
 
 ## Protobuf
@@ -176,6 +184,124 @@ exception that you may not place any wildcard within bracket operators. Also
 nested brackets are not allowed. As you can see in the examples above you can
 quote phrases to be handled as one entity is `[]` and `{}`.
 
+
+## Index configuration files
+
+Netspeak loads indexes using configuration files. These are small `.properties` files that contain information about the location and directory structure of the index, metadata (like name and language), and runtime parameters like the cache size.
+
+The following section will explain all supported keys.
+
+### Metadata
+
+The following keys hold metadata about the corpus used to create the current index.
+
+- `corpus.key = string` _(required)_
+
+  A unique key to identify the corpus. Two corpora with the same key are always assumed to be equal.
+
+- `corpus.name = string` _(required)_
+
+  The human-readable name of the corpus.
+
+- `corpus.language = string` _(required)_
+
+  The [ISO 639-1 code](https://en.wikipedia.org/wiki/ISO_639-1) of the language of the corpus.
+
+### Performance
+
+The following keys are parameters used to fine-tune performance.
+
+- `cache.capacity = size_t` _(optional)_
+
+  This sets the capacity of Netspeak's main cache: the norm query cache. This LFU cache stores the outputs of the query processor. It has a static capacity that limits the maximum number of items.
+
+  The default cache capacity of the current implementation is 1 million. At this capacity, an empty cache will use about 100MB and a full cache will use about 3GB of memory (depends on the cached queries). Other implementation may use different defaults.
+
+- `search.regex.max-matches = uint32` _(optional)_
+
+  The maximum number of regex matches. The current implementation replaces regex queries with a set of matching words (e.g. `route?` may be replaced with `[ router routed ]`). This parameter sets the maximum amount of words each regex query can be replaced with.
+
+  Choosing a large maximum can cause queries containing regexes to become very slow. This is only a maximum and the implementation may choose to use fewer words to (hopefully) stay fast.
+
+  You can set this to 0 to disable regex queries.
+
+  The default is implementation defined. The current implementation has a default of 100.
+
+- `search.regex.max-time = uint32` _(optional)_
+
+  The maximum amount of time in milliseconds Netspeak is allowed to search for regex matches. Choosing a generous duration will lead to more accurate search results but may degrade performance.
+
+  The default is implementation-defined but will generally around be a few milliseconds.
+
+### Paths
+
+The following keys are paths to locate the index.
+
+- `path.to.phrase-index = path` _(optional)_ <br>
+  `path.to.phrase-corpus = path` _(optional)_ <br>
+  `path.to.phrase-dictionary = path` _(optional)_ <br>
+  `path.to.postlist-index = path` _(optional)_ <br>
+  `path.to.hash-dictionary = path` _(optional)_ <br>
+  `path.to.regex-vocabulary = path` _(optional)_ <br>
+
+  Paths to the individual components of a Netspeak index.
+
+- `path.to.home = path` _(optional)_
+
+  This will set all unset `path.to.xxxx` values to `<path.to.home>/xxxx`.
+
+  If a Netspeak index follows the default index format (all indexes created by Netspeak do), then `path.to.home` can be used to set all index paths at once.
+
+  Note: "unset" means not present in this configuration file. Keys from the `extends` file are not considered.
+
+#### Note
+
+All paths (if not absolute) are relative to the directory the configuration file lives in.
+
+### Other
+
+- `extends = path` _(optional)_
+
+  The path of another configuration files.
+
+  All keys that are not present in the current configuration file will be retrieved from this one instead. This can be used to implement inheritance.
+
+
+## gRPC-web proxy
+
+A [gRPC-web proxy](https://github.com/netspeak/grpcwebproxy) is necessary to use Netspeak in browsers. This is how you use the proxy.
+
+### Linux
+
+You need to have Docker installed.
+
+Serve the index(es):
+
+```cmd
+docker run -p 9000:9000 -v /path/to/index:/index:ro webis/netspeak:4.1.2 netspeak4 serve -c /index/index.properties -p 9000
+```
+
+Run the proxy:
+
+```cmd
+docker run --network="host" webis/grpcwebproxy:0.14.0 grpcwebproxy --allow_all_origins --backend_addr=localhost:9000 --backend_tls=false --run_tls_server=false
+```
+
+### Windows
+
+To run the gRPC-web proxy on Windows, you need to have WSL2 and Docker Desktop (with WSL2 backend) installed.
+
+Serve the index(es):
+
+```cmd
+docker run -p 9000:9000 -v C:\path\to\index:/index:ro webis/netspeak:4.1.2 netspeak4 serve -c /index/index.properties -p 9000
+```
+
+Run the proxy:
+
+```cmd
+docker run -p 8080:8080 webis/grpcwebproxy:0.14.0 grpcwebproxy --allow_all_origins --backend_addr=host.docker.internal:9000 --backend_tls=false --run_tls_server=false
+```
 
 ---
 

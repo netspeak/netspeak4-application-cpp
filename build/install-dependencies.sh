@@ -10,85 +10,55 @@ fi
 # go to the dir of this script
 cd "$(dirname "$0")"
 
-apt-get install make cmake cmake-data pkg-config qt4-default -y
-apt-get install build-essential libboost-filesystem-dev libboost-system-dev libboost-test-dev libboost-program-options-dev libcmph-dev libaio-dev libprotobuf-dev protobuf-compiler libboost-regex-dev -y
+apt-get update
+apt-get install make clang build-essential libboost-filesystem-dev libboost-system-dev libboost-test-dev libboost-program-options-dev libboost-stacktrace-dev libcmph-dev libaio-dev libboost-regex-dev libboost-date-time-dev -y
 
 
-# checkout aitools dependencies
-function ensure_git {
-    if ! [ -x "$(command -v git)" ]; then
-        echo "Installing git..."
-        apt-get install git -y
-    fi
-}
+bash ./env/install-antlr4.sh
+bash ./env/install-grpc.sh
+
 
 mkdir -p ./dependencies
+chmod a+rw -R ./dependencies
 cd ./dependencies
-if [ ! -d ./aitools3-aq-bighashmap-cpp ]; then
-    ensure_git
-    git clone https://gitlab+deploy-token-8:52JyyPqQEkGg13es2qtb@git.webis.de/aitools/aitools3-aq-bighashmap-cpp.git
-else
-    echo "aitools3-aq-bighashmap-cpp already present."
-fi
-if [ ! -d ./aitools3-aq-invertedindex3-cpp ]; then
-    ensure_git
-    git clone https://gitlab+deploy-token-9:hxvTpSBa-WHExN5RZzey@git.webis.de/aitools/aitools3-aq-invertedindex3-cpp.git
-else
-    echo "aitools3-aq-invertedindex3-cpp already present."
-fi
-cd ..
+
+if [[ "$1" != "ci" ]]; then
+
+    # Download the JAR necessary to copmile .g4 files
+    if [ ! -f ./antlr4/antlr-4.7.1-complete.jar ]; then
+
+        echo "Downloading Antlr 4.7.1 JAR."
+
+        mkdir -p antlr4
+        cd antlr4
+
+        apt-get install unzip wget -y
+        wget -O antlr-4.7.1-complete.jar 'http://www.antlr.org/download/antlr-4.7.1-complete.jar'
+        chmod a+rw ./antlr-4.7.1-complete.jar
+
+        cd ..
+
+    else
+
+        echo "Antlr 4.7.1 JAR already present"
+
+    fi
 
 
-# download, compile and install Antlr4
-if [ ! -d ../antlr4 ]; then
+    # Download protoc-gen-grpc-web, a protoc plugin to generate gRPC web code
+    if [ ! -f ./protoc-gen-grpc-web ]; then
 
-    echo "Installing Antlr 4.7.1"
+        wget -O protoc-gen-grpc-web 'https://github.com/grpc/grpc-web/releases/download/1.2.0/protoc-gen-grpc-web-1.2.0-linux-x86_64'
+        chmod a+rwx ./protoc-gen-grpc-web
 
-    echo "Clean up"
+    fi
 
-    # go to the dir of this script
-    cd ..
-    rm -rf antlr4
-    mkdir antlr4
-    cd antlr4
+    # Download protoc-gen-grpc-java, a protoc plugin to generate gRPC Java code
+    if [ ! -f ./protoc-gen-grpc-java ]; then
 
-    echo "Download release"
+        wget -O protoc-gen-grpc-java 'https://repo1.maven.org/maven2/io/grpc/protoc-gen-grpc-java/1.32.2/protoc-gen-grpc-java-1.32.2-linux-x86_64.exe'
+        chmod a+rwx ./protoc-gen-grpc-java
 
-    apt-get install unzip wget -y
-    wget -O antlr-4.7.1-complete.jar 'http://www.antlr.org/download/antlr-4.7.1-complete.jar'
-    wget -O antlr-4.7.1.zip 'https://github.com/antlr/antlr4/archive/4.7.1.zip'
-    unzip -q antlr-4.7.1.zip
-
-
-    echo "Install and build Antlr4"
-
-
-    # install Antlr4 dependency
-    apt-get install uuid-dev cmake make -y
-
-    # clean up an prepare build
-    cd antlr4-4.7.1/runtime/Cpp
-    rm -rf dist
-    rm -rf build && mkdir build
-    rm -rf run && mkdir run
-
-    # build
-    cd build
-    cmake .. -DANTLR_JAR_LOCATION=../../../../antlr4.7.1-complete.jar
-    make
-    DESTDIR=../run make install
-    cd ..
-
-    echo "Copy Antlr4 files"
-
-    cp -r run/usr/local/include/antlr4-runtime /usr/include
-    cp -r run/usr/local/lib/* /usr/lib/
-
-else
-
-    echo "Antlr 4.7.1 is already installed.
-Remove the 'antlr4' directory and run this script again to reinstall it."
+    fi
 
 fi
-
-echo "Done installing Antlr 4.7.1"

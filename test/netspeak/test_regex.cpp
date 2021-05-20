@@ -18,26 +18,26 @@ std::string query_to_string(const RegexQuery& query) {
 
   for (const auto& unit : query.get_units()) {
     switch (unit.type) {
-      case RegexUnit::Type::qmark:
+      case RegexUnit::Type::QMARK:
         res.append("{qmark}");
         break;
-      case RegexUnit::Type::star:
+      case RegexUnit::Type::STAR:
         res.append("{star}");
         break;
 
-      case RegexUnit::Type::char_set:
+      case RegexUnit::Type::CHAR_SET:
         res.append("{char_set:'");
         res.append(conv.to_bytes(unit.value));
         res.append("'}");
         break;
 
-      case RegexUnit::Type::optional_word:
+      case RegexUnit::Type::OPTIONAL_WORD:
         res.append("{optional_word:'");
         res.append(conv.to_bytes(unit.value));
         res.append("'}");
         break;
 
-      case RegexUnit::Type::word:
+      case RegexUnit::Type::WORD:
         res.append("{word:'");
         res.append(conv.to_bytes(unit.value));
         res.append("'}");
@@ -105,6 +105,7 @@ BOOST_AUTO_TEST_CASE(test_regex_query_parser) {
       "{char_set:'ab'}{char_set:'ab'}{char_set:'ab'}{char_set:'ab'}");
   BOOST_REQUIRE_EQUAL(netspeak_query("{aaaa}"), "{word:'aaaa'}");
   BOOST_REQUIRE_EQUAL(netspeak_query("{a}"), "{word:'a'}");
+  BOOST_REQUIRE_EQUAL(netspeak_query("{}"), "");
 
   // optional
   BOOST_REQUIRE_EQUAL(netspeak_query("colo[u]r"),
@@ -119,7 +120,10 @@ BOOST_AUTO_TEST_CASE(test_regex_query_parser) {
 BOOST_AUTO_TEST_CASE(test_regex_query_parser_with_invalid_queries) {
   BOOST_REQUIRE_EQUAL(netspeak_query("["), "{word:'['}");
   BOOST_REQUIRE_EQUAL(netspeak_query("[{"), "{word:'[{'}");
+  BOOST_REQUIRE_EQUAL(netspeak_query("{"), "{word:'{'}");
   BOOST_REQUIRE_EQUAL(netspeak_query("]}"), "{word:']}'}");
+  BOOST_REQUIRE_EQUAL(netspeak_query("]"), "{word:']'}");
+  BOOST_REQUIRE_EQUAL(netspeak_query("}"), "{word:'}'}");
 }
 
 BOOST_AUTO_TEST_CASE(test_regex_query_accept_all) {

@@ -6,11 +6,13 @@
 
 #include <boost/optional.hpp>
 
-#include "netspeak/query_methods.hpp"
+#include "netspeak/model/QuerySyntax.hpp"
 
 
 namespace netspeak {
 namespace regex {
+
+typedef model::QuerySyntax Syntax;
 
 
 /**
@@ -41,7 +43,7 @@ boost::optional<std::u32string> read_until_char(
 }
 
 
-RegexQuery parse_netspeak_regex_query(const std::string &netspeak_query) {
+RegexQuery parse_netspeak_regex_query(const std::string& netspeak_query) {
   RegexQueryBuilder builder;
 
   // while input and output strings are UTF-8, the implementation will work
@@ -51,16 +53,16 @@ RegexQuery parse_netspeak_regex_query(const std::string &netspeak_query) {
   std::u32string query = conv.from_bytes(netspeak_query);
 
   for (std::u32string::const_iterator it = query.begin(); it != query.end();
-       it++) {
+       ++it) {
     char32_t c = *it;
     switch (c) {
-      case wildcard::qmark:
+      case Syntax::QMARK:
         builder.add(RegexUnit::qmark());
         break;
-      case wildcard::asterisk:
+      case Syntax::STAR:
         builder.add(RegexUnit::star());
         break;
-      case wildcard::plus:
+      case Syntax::PLUS:
         builder.add(RegexUnit::qmark());
         builder.add(RegexUnit::star());
         break;
@@ -70,16 +72,17 @@ RegexQuery parse_netspeak_regex_query(const std::string &netspeak_query) {
         if (*(it + 1) == '.') {
           builder.add(RegexUnit::star());
           while ((*(it + 1)) == '.') {
-            it++;
+            ++it;
           }
         } else {
           builder.add(RegexUnit::word(U"."));
         }
         break;
 
-      case wildcard::lbracket: {
+      case Syntax::BRACKET_LEFT: {
         // e.g. "[u]" or "[aeiou]"
-        auto result = read_until_char(it + 1, query.end(), wildcard::rbracket);
+        auto result =
+            read_until_char(it + 1, query.end(), Syntax::BRACKET_RIGHT);
         if (result) {
           it += result->size() + 1; // result + the end characters
           // "[u]" will be translated to /u?/ (optional) while "[aeiou]" will
@@ -99,14 +102,15 @@ RegexQuery parse_netspeak_regex_query(const std::string &netspeak_query) {
         break;
       }
 
-      case wildcard::lbrace: {
+      case Syntax::BRACE_LEFT: {
         // E.g. "{form}" will be translated to /[form][form][form][form]/ (or
         // equivalent).
-        auto result = read_until_char(it + 1, query.end(), wildcard::rbrace);
+        auto result = read_until_char(it + 1, query.end(), Syntax::BRACE_RIGHT);
         if (result) {
-          it += result->size() + 1; // result + the end characters
-          auto char_set = RegexUnit::char_set(*result);
-          for (int i = result->size() - 1; i >= 0; i--) {
+          const auto& result_chars = *result;
+          it += result_chars.size() + 1; // result + the end characters
+          auto char_set = RegexUnit::char_set(result_chars);
+          for (auto i = 0; i < result->size(); i++) {
             builder.add(char_set);
           }
         } else {

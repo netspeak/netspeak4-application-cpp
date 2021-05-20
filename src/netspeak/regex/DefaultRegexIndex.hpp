@@ -28,19 +28,19 @@ private: // state
   /**
    * @brief The vocabulary string of this instance.
    */
-  std::string vocabulary;
+  std::string vocabulary_;
   /**
    * @brief A list of entries of every word in \c vocabulary .
    */
-  std::vector<struct WordEntry> words;
+  std::vector<struct WordEntry> words_;
   /**
    * @brief A set of all characters in the vocabulary.
    */
-  std::unordered_set<char32_t> all_chars;
+  std::unordered_set<char32_t> all_chars_;
   /**
    * @brief A hash table containing all words.
    */
-  std::vector<uint32_t> word_hash_table;
+  std::vector<uint32_t> word_hash_table_;
 
 private: // initialization functions
   void initialize_words();
@@ -101,9 +101,13 @@ public:
    *
    * @param vocabulary The by \c \n separated words to search in.
    */
-  DefaultRegexIndex(const std::string& vocabulary);
+  DefaultRegexIndex(std::string vocabulary);
+  DefaultRegexIndex(const DefaultRegexIndex&) = delete;
+  ~DefaultRegexIndex() override{};
 
-  ~DefaultRegexIndex() {}
+  const std::string& vocabulary() const {
+    return vocabulary_;
+  }
 
   /**
    * @brief Adds all words matching the given query to the given vector.

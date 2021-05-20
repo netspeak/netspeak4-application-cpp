@@ -12,12 +12,15 @@ jobs:
 
     runs-on: ubuntu-latest
 
+    container: webis/netspeak-env:0.1
+
     steps:
     - uses: actions/checkout@v2
 
     - name: Install dependencies
-      run: sudo ./build/install-dependencies.sh
+      run: bash ./build/install-dependencies.sh ci
+    - run: bash ./build/cmake.sh
     - name: Build
-      run: qmake && make
+      run: bash ./build/make-debug.sh
     - name: Run tests
       run: ./build/run-tests.sh

@@ -1,11 +1,9 @@
 #ifndef NETSPEAK_PHRASE_FILE_READER_HPP
 #define NETSPEAK_PHRASE_FILE_READER_HPP
 
-#include "aitools/invertedindex/RecordReader.hpp"
-
 #include "netspeak/PhraseFileParser.hpp"
-#include "netspeak/generated/NetspeakMessages.pb.h"
-#include "netspeak/typedefs.hpp"
+#include "netspeak/invertedindex/RecordReader.hpp"
+#include "netspeak/model/typedefs.hpp"
 
 namespace netspeak {
 
@@ -19,14 +17,14 @@ namespace netspeak {
  */
 template <bool stream_provides_phrase_id>
 class PhraseFileReader
-    : public aitools::invertedindex::RecordReader<PhraseIndexValue> {
+    : public invertedindex::RecordReader<model::PhraseIndexValue> {
 public:
-  typedef aitools::invertedindex::RecordReader<PhraseIndexValue> base_type;
+  typedef invertedindex::RecordReader<model::PhraseIndexValue> base_type;
   typedef typename base_type::record_type record_type;
 
   PhraseFileReader(std::istream& is) : base_type(), wordpos_(), parser_(is) {}
 
-  PhraseFileReader(std::istream& is, PhraseIndexValue::e2_type id_offset)
+  PhraseFileReader(std::istream& is, model::PhraseIndexValue::e2_type id_offset)
       : base_type(), wordpos_(), parser_(is, id_offset) {}
 
   virtual ~PhraseFileReader() {}
@@ -38,21 +36,21 @@ public:
   //  }
 
   virtual bool read(record_type& record) {
-    if (phrase_.word_size() == 0 ||
-        phrase_.word_size() == static_cast<int>(wordpos_)) {
-      if (!parser_.read_next(phrase_))
+    if (item_.words.empty() || item_.words.size() == wordpos_) {
+      if (!parser_.read_next(item_)) {
         return false;
+      }
       wordpos_ = 0;
     }
     // <key> = <phrase-length>:<word-position>_<single-word>
-    record.key().assign(aitools::to_string(phrase_.word_size()));
+    record.key().assign(util::to_string(item_.words.size()));
     record.key().push_back(':');
-    record.key().append(aitools::to_string(wordpos_));
+    record.key().append(util::to_string(wordpos_));
     record.key().push_back('_');
-    record.key().append(phrase_.word(wordpos_).text());
+    record.key().append(item_.words[wordpos_]);
     // <value> = (<phrase-frequency>, <phrase-id>)
-    record.value().set_e1(phrase_.frequency());
-    record.value().set_e2(phrase_.id());
+    record.value().set_e1(item_.freq);
+    record.value().set_e2(item_.id);
     ++wordpos_;
     return true;
   }
@@ -63,7 +61,7 @@ public:
 
 private:
   size_t wordpos_;
-  generated::Phrase phrase_;
+  PhraseFileParserItem item_;
   PhraseFileParser<stream_provides_phrase_id> parser_;
 };
 

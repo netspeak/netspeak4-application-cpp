@@ -1,9 +1,10 @@
 #ifndef NETSPEAK_RETRIEVAL_STRATEGY_HPP
 #define NETSPEAK_RETRIEVAL_STRATEGY_HPP
 
-#include "netspeak/Configurations.hpp"
+#include "netspeak/Configuration.hpp"
 #include "netspeak/Properties.hpp"
-#include "netspeak/generated/NetspeakMessages.pb.h"
+#include "netspeak/model/NormQuery.hpp"
+#include "netspeak/model/SearchOptions.hpp"
 
 namespace netspeak {
 
@@ -11,7 +12,8 @@ namespace netspeak {
  * Primary template to extract the phrase frequency and phrase id from certain
  * index entry type used by specialized classes of \c RetrievalStrategy.
  */
-template <typename IndexEntryT> struct index_entry_traits {
+template <typename IndexEntryT>
+struct index_entry_traits {
   typedef IndexEntryT value_type;
 
   static bool equal(const value_type& a, const value_type& b);
@@ -44,29 +46,29 @@ struct stats_type {
  * type representing some RetrievalStrategyTag. This technique is inspired by
  * the STL's interator category tag classes.
  */
-template <typename RetrievalStrategyTag> class RetrievalStrategy {
+template <typename RetrievalStrategyTag>
+class RetrievalStrategy {
 public:
-  void initialize(const Configurations::Map& config);
+  void initialize(const Configuration& config);
 
-  void initialize_query(const generated::Request& request,
-                        generated::Query& query);
+  void initialize_query(
+      const SearchOptions& options, const model::NormQuery& query,
+      std::vector<typename RetrievalStrategyTag::unit_metadata>& metadata);
 
   template <typename OutputIterator>
-  const stats_type initialize_result_set(const generated::Query::Unit& unit,
-                                         const generated::Query& query,
-                                         size_t max_phrase_frequency,
-                                         size_t max_phrase_count,
-                                         OutputIterator output);
+  const stats_type initialize_result_set(
+      const typename RetrievalStrategyTag::unit_metadata& unit_meta,
+      const model::NormQuery& query, uint64_t max_phrase_frequency,
+      uint64_t max_phrase_count, OutputIterator output);
 
   template <typename IntersectionSet, typename OutputIterator>
-  const stats_type intersect_result_set(const IntersectionSet& input,
-                                        const generated::Query::Unit& unit,
-                                        const generated::Query& query,
-                                        size_t max_phrase_frequency,
-                                        size_t max_phrase_count,
-                                        OutputIterator& output);
+  const stats_type intersect_result_set(
+      const IntersectionSet& input,
+      const typename RetrievalStrategyTag::unit_metadata& unit_meta,
+      const model::NormQuery& query, size_t max_phrase_frequency,
+      size_t max_phrase_count, OutputIterator& output);
 
-  const Properties properties() const;
+  Properties properties() const;
 };
 
 } // namespace netspeak

@@ -14,9 +14,9 @@ namespace regex {
  * 1.  `q°` == `°q` == `q`
  * 2.  `*` == `**`
  * 3.  `?*` == `*?`
- * 4.  `[a]` == `[a]` == `a`
+ * 4.  `[aa]` == `[a]` == `a`
  * 5.  `()` == `°`
- * 6.  `(w)*` == `(w)*` == `*`
+ * 6.  `(w)*` == `*(w)` == `*`
  *
  * Syntax:
  *  -  ° is the empty word
@@ -35,15 +35,15 @@ uint32_t RegexQuery::combinations_upper_bound() const {
   uint64_t count = 1;
   for (const auto& unit : m_units) {
     switch (unit.type) {
-      case RegexUnit::Type::qmark:
-      case RegexUnit::Type::star:
+      case RegexUnit::Type::QMARK:
+      case RegexUnit::Type::STAR:
         return UINT32_MAX;
 
-      case RegexUnit::Type::optional_word:
+      case RegexUnit::Type::OPTIONAL_WORD:
         count *= 2;
         break;
 
-      case RegexUnit::Type::char_set:
+      case RegexUnit::Type::CHAR_SET:
         count *= unit.value.size();
         break;
 
@@ -77,17 +77,17 @@ size_t RegexQuery::min_utf8_input_length() const {
   size_t min = 0;
   for (const auto& unit : m_units) {
     switch (unit.type) {
-      case RegexUnit::Type::word:
+      case RegexUnit::Type::WORD:
         for (const auto c : unit.value) {
           min += number_of_utf8_bytes(c);
         }
         break;
 
-      case RegexUnit::Type::qmark:
+      case RegexUnit::Type::QMARK:
         min += MIN_UTF8_BYTES_PER_CHAR;
         break;
 
-      case RegexUnit::Type::char_set: {
+      case RegexUnit::Type::CHAR_SET: {
         if (unit.value.empty()) {
           return SIZE_MAX;
         }
@@ -116,18 +116,18 @@ size_t RegexQuery::max_utf8_input_length() const {
   size_t max = 0;
   for (const auto& unit : m_units) {
     switch (unit.type) {
-      case RegexUnit::Type::word:
-      case RegexUnit::Type::optional_word:
+      case RegexUnit::Type::WORD:
+      case RegexUnit::Type::OPTIONAL_WORD:
         for (const auto c : unit.value) {
           max += number_of_utf8_bytes(c);
         }
         break;
 
-      case RegexUnit::Type::qmark:
+      case RegexUnit::Type::QMARK:
         max += MAX_UTF8_BYTES_PER_CHAR;
         break;
 
-      case RegexUnit::Type::char_set: {
+      case RegexUnit::Type::CHAR_SET: {
         // it's not defined what should happen if the char_set doesn't contain
         // characters, so we just do whatever
         size_t char_set_max = 0;
@@ -144,7 +144,7 @@ size_t RegexQuery::max_utf8_input_length() const {
         break;
       }
 
-      case RegexUnit::Type::star:
+      case RegexUnit::Type::STAR:
         return SIZE_MAX;
     }
   }
@@ -172,13 +172,13 @@ void remove_trailing_optional_words(std::vector<RegexUnit>& units) {
   size_t qmarks = 0;
   while (!units.empty()) {
     const auto type = units.back().type;
-    if (type == RegexUnit::Type::qmark) {
+    if (type == RegexUnit::Type::QMARK) {
       qmarks++;
       units.pop_back();
-    } else if (type == RegexUnit::Type::optional_word) {
+    } else if (type == RegexUnit::Type::OPTIONAL_WORD) {
       units.pop_back();
     } else {
-      // fun's over. We hit a unit which isn't a qmark or optional word
+      // fun's over. We hit a unit which isn't a QMARK or optional word
       break;
     }
   }
@@ -223,7 +223,7 @@ std::u32string without_duplicates(const std::u32string& characters) {
 }
 
 RegexUnit optimize_unit(RegexUnit& unit) {
-  if (unit.type == RegexUnit::Type::char_set) {
+  if (unit.type == RegexUnit::Type::CHAR_SET) {
     std::u32string set = without_duplicates(unit.value);
     if (set.size() == 1) {
       // rule 4
@@ -247,13 +247,13 @@ void RegexQueryBuilder::add(RegexUnit unit) {
 
   if (unit.value.empty()) {
     // there's no point in concatenating the empty string
-    if (unit.type == RegexUnit::Type::word ||
-        unit.type == RegexUnit::Type::optional_word) {
+    if (unit.type == RegexUnit::Type::WORD ||
+        unit.type == RegexUnit::Type::OPTIONAL_WORD) {
       return; // rule 1, 5
     }
 
     // make reject all
-    if (unit.type == RegexUnit::Type::char_set) {
+    if (unit.type == RegexUnit::Type::CHAR_SET) {
       reject_all = true;
       return;
     }
@@ -273,8 +273,8 @@ void RegexQueryBuilder::add(RegexUnit unit) {
 
   auto prev = units.back();
   switch (unit.type) {
-    case RegexUnit::Type::word:
-      if (prev.type == RegexUnit::Type::word) {
+    case RegexUnit::Type::WORD:
+      if (prev.type == RegexUnit::Type::WORD) {
         // concatenate adjacent words.
         std::u32string concat(prev.value);
         concat.append(unit.value);
@@ -283,8 +283,8 @@ void RegexQueryBuilder::add(RegexUnit unit) {
       }
       break;
 
-    case RegexUnit::Type::qmark:
-      if (prev.type == RegexUnit::Type::star) {
+    case RegexUnit::Type::QMARK:
+      if (prev.type == RegexUnit::Type::STAR) {
         // switch their order (rule 3)
         units.back() = unit;
         units.push_back(prev);
@@ -292,12 +292,12 @@ void RegexQueryBuilder::add(RegexUnit unit) {
       }
       break;
 
-    case RegexUnit::Type::star:
-      if (prev.type == RegexUnit::Type::star) {
+    case RegexUnit::Type::STAR:
+      if (prev.type == RegexUnit::Type::STAR) {
         return; // rule 2
       }
-      if (prev.type == RegexUnit::Type::optional_word ||
-          prev.type == RegexUnit::Type::qmark) {
+      if (prev.type == RegexUnit::Type::OPTIONAL_WORD ||
+          prev.type == RegexUnit::Type::QMARK) {
         // rule 6, 3
         remove_trailing_optional_words(units);
         units.push_back(unit);
@@ -305,12 +305,12 @@ void RegexQueryBuilder::add(RegexUnit unit) {
       }
       break;
 
-    case RegexUnit::Type::char_set:
+    case RegexUnit::Type::CHAR_SET:
       // char_sets are already optimized as is, so we don't have to do anything
       break;
 
-    case RegexUnit::Type::optional_word:
-      if (prev.type == RegexUnit::Type::star) {
+    case RegexUnit::Type::OPTIONAL_WORD:
+      if (prev.type == RegexUnit::Type::STAR) {
         return; // rule 6
       }
       break;
@@ -327,25 +327,22 @@ std::ostream& operator<<(std::ostream& outputStream, const RegexQuery& query) {
   } else {
     std::wstring_convert<std::codecvt_utf8<char32_t>, char32_t> conv;
 
-    const auto units = query.get_units();
-
-    for (auto it = units.begin(); it != units.end(); it++) {
-      auto unit = *it;
+    for (const auto& unit : query.get_units()) {
       switch (unit.type) {
-        case RegexUnit::Type::qmark:
+        case RegexUnit::Type::QMARK:
           outputStream << "?";
           break;
-        case RegexUnit::Type::star:
+        case RegexUnit::Type::STAR:
           outputStream << "*";
           break;
 
-        case RegexUnit::Type::char_set:
+        case RegexUnit::Type::CHAR_SET:
           outputStream << "[";
           outputStream << conv.to_bytes(unit.value);
           outputStream << "]";
           break;
 
-        case RegexUnit::Type::optional_word:
+        case RegexUnit::Type::OPTIONAL_WORD:
           outputStream << "(";
           outputStream << conv.to_bytes(unit.value);
           outputStream << ")";

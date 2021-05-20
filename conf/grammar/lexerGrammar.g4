@@ -122,7 +122,7 @@ fragment CHAR
 
 /**
  * This lexer rule is special because of the skip command. This rule matches
- * all possibly whitespace chars from UniCode. The generated tokenstream
+ * all possibly whitespace chars from Unicode. The generated tokenstream
  * contains no token which match this rule. This is however important when
  * writing parser rules.
  */

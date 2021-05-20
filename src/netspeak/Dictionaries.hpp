@@ -22,8 +22,6 @@ public:
   typedef std::unordered_multimap<std::string, std::string> Map;
 
   static const Map read_from_file(const boost::filesystem::path& csv);
-
-  static bool contains(const Map& dict, const std::string& key);
 };
 
 } // namespace netspeak

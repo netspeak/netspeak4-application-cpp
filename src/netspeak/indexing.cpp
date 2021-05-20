@@ -12,42 +12,42 @@
 
 #include <boost/filesystem/fstream.hpp>
 
-#include "aitools/bighashmap/BigHashMap.hpp"
-#include "aitools/invertedindex/Configuration.hpp"
-#include "aitools/invertedindex/ManagedIndexer.hpp"
-#include "aitools/invertedindex/Postlist.hpp"
-#include "aitools/invertedindex/Searcher.hpp"
-#include "aitools/util/check.hpp"
-#include "aitools/util/systemio.hpp"
-
-#include "netspeak/Configurations.hpp"
+#include "netspeak/Configuration.hpp"
 #include "netspeak/Netspeak.hpp"
 #include "netspeak/PhraseCorpus.hpp"
 #include "netspeak/PhraseFileReader.hpp"
-#include "netspeak/RetrievalStrategy3.hpp"
+#include "netspeak/bighashmap/BigHashMap.hpp"
 #include "netspeak/error.hpp"
-#include "netspeak/generated/NetspeakMessages.pb.h"
+#include "netspeak/invertedindex/Configuration.hpp"
+#include "netspeak/invertedindex/ManagedIndexer.hpp"
+#include "netspeak/invertedindex/Postlist.hpp"
+#include "netspeak/invertedindex/Searcher.hpp"
+#include "netspeak/model/Phrase.hpp"
+#include "netspeak/service/NetspeakService.pb.h"
+#include "netspeak/util/check.hpp"
+#include "netspeak/util/systemio.hpp"
 
 namespace netspeak {
 
-namespace ai = aitools::invertedindex;
+namespace ai = invertedindex;
 namespace bfs = boost::filesystem;
+using namespace model;
 
 void BuildNetspeak(const bfs::path& phrase_dir, const bfs::path& netspeak_dir) {
-  aitools::check(bfs::exists(phrase_dir), error_message::does_not_exist,
-                 phrase_dir);
-  aitools::CreateOrCheckIfEmpty(netspeak_dir);
+  util::check(bfs::exists(phrase_dir), error_message::does_not_exist,
+              phrase_dir);
+  util::CreateOrCheckIfEmpty(netspeak_dir);
 
   // -------------------------------------------------------------------------
   // Build component "phrase-corpus"
   // -------------------------------------------------------------------------
 
   const bfs::path phrase_corpus_dir =
-      netspeak_dir / Configurations::default_phrase_corpus_dir_name;
-  aitools::check(bfs::create_directory(phrase_corpus_dir),
-                 error_message::cannot_create, phrase_corpus_dir);
+      netspeak_dir / Configuration::DEFAULT_PHRASE_CORPUS_DIR_NAME;
+  util::check(bfs::create_directory(phrase_corpus_dir),
+              error_message::cannot_create, phrase_corpus_dir);
 
-  aitools::log("Building component", phrase_corpus_dir);
+  util::log("Building component", phrase_corpus_dir);
   const uint64_t num_records = BuildPhraseCorpus(phrase_dir, phrase_corpus_dir);
   SetReadOnly(phrase_corpus_dir);
 
@@ -56,11 +56,11 @@ void BuildNetspeak(const bfs::path& phrase_dir, const bfs::path& netspeak_dir) {
   // -------------------------------------------------------------------------
 
   const bfs::path phrase_dictionary_dir =
-      netspeak_dir / Configurations::default_phrase_dictionary_dir_name;
-  aitools::check(bfs::create_directories(phrase_dictionary_dir),
-                 error_message::cannot_create, phrase_dictionary_dir);
+      netspeak_dir / Configuration::DEFAULT_PHRASE_DICTIONARY_DIR_NAME;
+  util::check(bfs::create_directories(phrase_dictionary_dir),
+              error_message::cannot_create, phrase_dictionary_dir);
 
-  aitools::log("Building component", phrase_dictionary_dir);
+  util::log("Building component", phrase_dictionary_dir);
   const bfs::path corpus_dir_txt = phrase_corpus_dir / PhraseCorpus::txt_dir;
   BuildPhraseDictionary(corpus_dir_txt, phrase_dictionary_dir);
   SetReadOnly(phrase_dictionary_dir);
@@ -70,11 +70,11 @@ void BuildNetspeak(const bfs::path& phrase_dir, const bfs::path& netspeak_dir) {
   // -------------------------------------------------------------------------
 
   const bfs::path phrase_index_dir =
-      netspeak_dir / Configurations::default_phrase_index_dir_name;
-  aitools::check(bfs::create_directories(phrase_index_dir),
-                 error_message::cannot_create, phrase_index_dir);
+      netspeak_dir / Configuration::DEFAULT_PHRASE_INDEX_DIR_NAME;
+  util::check(bfs::create_directories(phrase_index_dir),
+              error_message::cannot_create, phrase_index_dir);
 
-  aitools::log("Building component", phrase_index_dir);
+  util::log("Building component", phrase_index_dir);
   BuildPhraseIndex(corpus_dir_txt, phrase_index_dir, num_records);
   SetReadOnly(phrase_index_dir);
 
@@ -83,11 +83,11 @@ void BuildNetspeak(const bfs::path& phrase_dir, const bfs::path& netspeak_dir) {
   // -------------------------------------------------------------------------
 
   const bfs::path postlist_index_dir =
-      netspeak_dir / Configurations::default_postlist_index_dir_name;
-  aitools::check(bfs::create_directory(postlist_index_dir),
-                 error_message::cannot_create, postlist_index_dir);
+      netspeak_dir / Configuration::DEFAULT_POSTLIST_INDEX_DIR_NAME;
+  util::check(bfs::create_directory(postlist_index_dir),
+              error_message::cannot_create, postlist_index_dir);
 
-  aitools::log("Building component", postlist_index_dir);
+  util::log("Building component", postlist_index_dir);
   BuildPostlistIndex(phrase_index_dir, postlist_index_dir);
   SetReadOnly(postlist_index_dir);
 
@@ -95,22 +95,22 @@ void BuildNetspeak(const bfs::path& phrase_dir, const bfs::path& netspeak_dir) {
   // Build component "regex-vocabulary"
   // -------------------------------------------------------------------------
 
-  const Configurations::Map config = {
-    { Configurations::path_to_home, netspeak_dir.string() },
-    { Configurations::path_to_phrase_corpus, phrase_corpus_dir.string() },
-    { Configurations::path_to_phrase_dictionary,
+  const Configuration config = {
+    { Configuration::PATH_TO_HOME, netspeak_dir.string() },
+    { Configuration::PATH_TO_PHRASE_CORPUS, phrase_corpus_dir.string() },
+    { Configuration::PATH_TO_PHRASE_DICTIONARY,
       phrase_dictionary_dir.string() },
-    { Configurations::path_to_phrase_index, phrase_index_dir.string() },
-    { Configurations::path_to_postlist_index, postlist_index_dir.string() },
-    { Configurations::cache_capacity, "1000" }
+    { Configuration::PATH_TO_PHRASE_INDEX, phrase_index_dir.string() },
+    { Configuration::PATH_TO_POSTLIST_INDEX, postlist_index_dir.string() },
+    { Configuration::CACHE_CAPACITY, "1000" },
   };
 
   const bfs::path regex_vocabulary_dir =
-      netspeak_dir / Configurations::default_regex_vocabulary_dir_name;
-  aitools::check(bfs::create_directory(regex_vocabulary_dir),
-                 error_message::cannot_create, regex_vocabulary_dir);
+      netspeak_dir / Configuration::DEFAULT_REGEX_VOCABULARY_DIR_NAME;
+  util::check(bfs::create_directory(regex_vocabulary_dir),
+              error_message::cannot_create, regex_vocabulary_dir);
 
-  aitools::log("Building component", regex_vocabulary_dir);
+  util::log("Building component", regex_vocabulary_dir);
   BuildRegexVocabulary(regex_vocabulary_dir, phrase_corpus_dir, config);
   SetReadOnly(regex_vocabulary_dir);
 }
@@ -119,67 +119,67 @@ uint64_t BuildPhraseCorpus(const bfs::path& phrase_dir,
                            const bfs::path& phrase_corpus_dir) {
   const bfs::path pc_txt_dir = phrase_corpus_dir / PhraseCorpus::txt_dir;
   const bfs::path pc_bin_dir = phrase_corpus_dir / PhraseCorpus::bin_dir;
-  aitools::check(bfs::create_directory(pc_txt_dir),
-                 error_message::cannot_create, pc_txt_dir);
-  aitools::check(bfs::create_directory(pc_bin_dir),
-                 error_message::cannot_create, pc_bin_dir);
+  util::check(bfs::create_directory(pc_txt_dir), error_message::cannot_create,
+              pc_txt_dir);
+  util::check(bfs::create_directory(pc_bin_dir), error_message::cannot_create,
+              pc_bin_dir);
 
   typedef std::shared_ptr<std::ostream> ostream_pointer;
   std::unordered_map<size_t, ostream_pointer> phrase_len_to_txt_os;
   std::unordered_map<size_t, ostream_pointer> phrase_len_to_bin_os;
-  std::unordered_map<size_t, PhraseId> phrase_len_to_id;
-  std::unordered_map<std::string, PhraseId> unigram_to_id;
+  std::unordered_map<size_t, Phrase::Id::Local> phrase_len_to_id;
+  std::unordered_map<std::string, Phrase::Id::Local> unigram_to_id;
 
-  generated::Phrase phrase;
-  PhraseId phrase_id;
-  PhraseCorpusPhraseFreq phrase_freq;
+  PhraseFileParserItem parser_item;
+  Phrase::Id::Local phrase_id;
+  Phrase::Frequency phrase_freq;
   const bfs::directory_iterator dir_end;
   for (bfs::directory_iterator it(phrase_dir); it != dir_end; ++it) {
     bfs::ifstream ifs(it->path());
-    aitools::check(ifs.is_open(), error_message::cannot_open, it->path());
+    util::check(ifs.is_open(), error_message::cannot_open, it->path());
     PhraseFileParser<false> parser(ifs);
-    aitools::log("Processing", it->path());
-    while (parser.read_next(phrase)) {
+    util::log("Processing", it->path());
+    while (parser.read_next(parser_item)) {
+      auto length = parser_item.words.size();
       // Add words to the vocabulary (assigning a new id to new words).
-      for (const auto& word : phrase.word()) {
-        unigram_to_id.insert(std::make_pair(word.text(), unigram_to_id.size()));
+      for (const auto& word : parser_item.words) {
+        unigram_to_id.insert(std::make_pair(word, unigram_to_id.size()));
       }
       // Create text and binary file if not present.
-      if (phrase_len_to_id.find(phrase.word_size()) == phrase_len_to_id.end()) {
+      if (phrase_len_to_id.find(length) == phrase_len_to_id.end()) {
         std::ostringstream oss;
-        oss << PhraseCorpus::phrase_file << '.' << phrase.word_size();
+        oss << PhraseCorpus::phrase_file << '.' << length;
         const bfs::path txt_file = pc_txt_dir / oss.str();
-        phrase_len_to_txt_os[phrase.word_size()] =
+        phrase_len_to_txt_os[length] =
             std::shared_ptr<std::ostream>(new bfs::ofstream(txt_file));
         oss.clear();
         oss.str("");
-        oss << PhraseCorpus::phrase_file << '.' << phrase.word_size();
+        oss << PhraseCorpus::phrase_file << '.' << length;
         const bfs::path bin_file = pc_bin_dir / oss.str();
-        phrase_len_to_bin_os[phrase.word_size()] =
-            std::shared_ptr<std::ostream>(
-                new bfs::ofstream(bin_file, std::ios_base::binary));
+        phrase_len_to_bin_os[length] = std::shared_ptr<std::ostream>(
+            new bfs::ofstream(bin_file, std::ios_base::binary));
       }
       // Set phrase-id and auto-increment id.
-      phrase.set_id(phrase_len_to_id[phrase.word_size()]++);
+      parser_item.id = phrase_len_to_id[length]++;
       // Write phrase in text representation.
-      auto& txt_os = phrase_len_to_txt_os[phrase.word_size()];
-      println_as_text_freq_id_to(phrase, *txt_os);
+      auto& txt_os = phrase_len_to_txt_os[length];
+      PhraseFileParser<true>::write(*txt_os, parser_item);
       // Write phrase in binary representation.
-      phrase_freq = phrase.frequency();
-      auto& bin_os = *phrase_len_to_bin_os[phrase.word_size()];
+      phrase_freq = parser_item.freq;
+      auto& bin_os = *phrase_len_to_bin_os[length];
       bin_os.write(reinterpret_cast<const char*>(&phrase_freq),
-                   sizeof(PhraseCorpusPhraseFreq));
-      for (const auto& word : phrase.word()) {
-        phrase_id = unigram_to_id[word.text()];
+                   sizeof(Phrase::Frequency));
+      for (const auto& word : parser_item.words) {
+        phrase_id = unigram_to_id[word];
         bin_os.write(reinterpret_cast<const char*>(&phrase_id),
-                     sizeof(PhraseId));
+                     sizeof(Phrase::Id::Local));
       }
     }
   }
   // Write vocabulary.
   const bfs::path vocab_file = pc_bin_dir / PhraseCorpus::vocab_file;
   bfs::ofstream ofs(vocab_file);
-  aitools::check(ofs.is_open(), error_message::cannot_create, vocab_file);
+  util::check(ofs.is_open(), error_message::cannot_create, vocab_file);
   for (const auto& entry : unigram_to_id) {
     ofs << entry.first << '\t' << entry.second << '\n';
   }
@@ -193,8 +193,8 @@ uint64_t BuildPhraseCorpus(const bfs::path& phrase_dir,
 
 void BuildPhraseDictionary(const bfs::path& phrase_dir,
                            const bfs::path& phrase_dictionary_dir) {
-  typedef aitools::pair<PhraseCorpusPhraseFreq, PhraseId> Value;
-  aitools::BigHashMap<Value>::Build(phrase_dir, phrase_dictionary_dir);
+  typedef value::pair<Phrase::Frequency, Phrase::Id::Local> Value;
+  bighashmap::BigHashMap<Value>::Build(phrase_dir, phrase_dictionary_dir);
 }
 
 void BuildPhraseIndex(const bfs::path& phrase_dir,
@@ -205,7 +205,7 @@ void BuildPhraseIndex(const bfs::path& phrase_dir,
   config.set_index_directory(phrase_index_dir.string());
   config.set_key_sorting(ai::key_sorting_type::unsorted);
   config.set_value_sorting(ai::value_sorting_type::descending);
-  config.set_max_memory_usage(aitools::memory_type::mb4096);
+  config.set_max_memory_usage(util::memory_type::mb4096);
   config.set_expected_record_count(expected_record_count);
 
   typedef PhraseFileReader<true> record_reader_type;
@@ -218,7 +218,7 @@ void BuildPostlistIndex(const bfs::path& phrase_index_dir,
   // Load the n-gram index.
   ai::Configuration config;
   config.set_index_directory(phrase_index_dir.string());
-  config.set_max_memory_usage(aitools::memory_type::min_required);
+  config.set_max_memory_usage(util::memory_type::min_required);
   ai::Searcher<PhraseIndexValue> searcher(config);
 
   // Setup postlist index.
@@ -230,17 +230,17 @@ void BuildPostlistIndex(const bfs::path& phrase_index_dir,
   // Lookup each key and index the returned postlist.
   const bfs::path table_txt = phrase_index_dir / "table.txt";
   bfs::ifstream ifs(table_txt);
-  aitools::check(ifs.is_open(), error_message::cannot_open, table_txt);
+  util::check(ifs.is_open(), error_message::cannot_open, table_txt);
   ai::Record<PostlistIndexValue> postlist_index_record;
   std::string key, fileid, offset;
   while (ifs >> key >> fileid >> offset) {
     const auto postlist = searcher.search_postlist(key);
-    aitools::check(postlist.get(), "unknown key", key);
+    util::check(postlist.get(), "unknown key", key);
     postlist_index_record.set_key(key);
     // Postlists shorter than 1000 will not be indexed.
     const auto postlist_index =
         IndexPostlist(*postlist, postlist->size() / 1000);
-    for (const auto entry : postlist_index) {
+    for (const auto& entry : postlist_index) {
       postlist_index_record.set_value(entry);
       indexer.insert(postlist_index_record);
     }
@@ -302,7 +302,7 @@ std::vector<WordFreqPair> read_1grams(
   const auto one_grams = phrase_corpus_dir / PhraseCorpus::txt_dir /
                          (PhraseCorpus::phrase_file + ".1");
   bfs::ifstream ifs(one_grams);
-  aitools::check(ifs.is_open(), error_message::cannot_open, one_grams);
+  util::check(ifs.is_open(), error_message::cannot_open, one_grams);
 
   std::string word;
   uint64_t frequency;
@@ -327,7 +327,7 @@ std::vector<std::string> find_missing_words(
   const auto vocab_file =
       phrase_corpus_dir / PhraseCorpus::bin_dir / PhraseCorpus::vocab_file;
   bfs::ifstream ifs(vocab_file);
-  aitools::check(ifs.is_open(), error_message::cannot_open, vocab_file);
+  util::check(ifs.is_open(), error_message::cannot_open, vocab_file);
 
   std::string word;
   WordId word_id;
@@ -341,28 +341,31 @@ std::vector<std::string> find_missing_words(
 }
 void add_missing(std::vector<WordFreqPair>& word_freq_pairs,
                  const boost::filesystem::path& phrase_corpus_dir,
-                 const Configurations::Map& config) {
+                 const Configuration& config) {
   // read "phrase-corpus/bin/vocab" file to find missing words
   const auto missing = find_missing_words(phrase_corpus_dir, word_freq_pairs);
   if (!missing.empty()) {
     // since the index is basically ready, we will just query "* <word> *" for
     // every missing word and use the highest frequency.
-    Netspeak<RetrievalStrategy3Tag> netspeak;
+    Netspeak netspeak;
     netspeak.initialize(config);
 
     for (const auto& word : missing) {
-      generated::Request req;
+      service::SearchRequest req;
       req.set_query("* " + word + " *");
-      req.set_phrase_length_min(2); // it's not a 1-gram
-      req.set_max_phrase_count(2);
+      req.set_max_phrases(2);
+      req.mutable_phrase_constraints()->set_words_min(2); // it's not a 1-gram
 
       uint64_t freq = 0;
 
-      const auto response = *(netspeak.search(req));
-      if (response.error_code() == to_ordinal(error_code::no_error)) {
-        if (response.phrase_size() > 0) {
+      service::SearchResponse res;
+      netspeak.search(req, res);
+      if (res.has_result()) {
+        const auto& result = res.result();
+
+        if (result.phrases_size() > 0) {
           // found at least one phrase with that word
-          freq = response.phrase(0).frequency();
+          freq = result.phrases(0).frequency();
         } else {
           // no phrases with that word
           std::printf(
@@ -370,13 +373,15 @@ void add_missing(std::vector<WordFreqPair>& word_freq_pairs,
               word.c_str());
         }
       } else {
+        const auto& error = res.error();
+
         // error occurred
         std::printf(
             "Warning: Unknown error occurred while searching for \"%s\": "
             "%s : %s\n",
             word.c_str(),
-            to_string(to_error_code(response.error_code())).c_str(),
-            response.error_message().c_str());
+            service::SearchResponse::Error::Kind_Name(error.kind()).c_str(),
+            error.message().c_str());
       }
 
       std::cout << "Assumed frequency " << freq << " for missing word: " << word
@@ -388,7 +393,7 @@ void add_missing(std::vector<WordFreqPair>& word_freq_pairs,
 
 void BuildRegexVocabulary(const boost::filesystem::path& regex_vocabulary_dir,
                           const boost::filesystem::path& phrase_corpus_dir,
-                          const Configurations::Map& config) {
+                          const Configuration& config) {
   auto word_freq_pairs = read_1grams(phrase_corpus_dir);
 
   // Simply going though all 1-grams is not enough because there might be some
@@ -404,11 +409,10 @@ void BuildRegexVocabulary(const boost::filesystem::path& regex_vocabulary_dir,
             });
 
   // output to file
-  const bfs::path regex_vocabulary_file =
-      regex_vocabulary_dir / "vocab.sorted";
+  const bfs::path regex_vocabulary_file = regex_vocabulary_dir / "vocab.sorted";
   bfs::ofstream ofs(regex_vocabulary_file);
-  aitools::check(ofs.is_open(), error_message::cannot_create,
-                 regex_vocabulary_file);
+  util::check(ofs.is_open(), error_message::cannot_create,
+              regex_vocabulary_file);
   for (const auto& entry : word_freq_pairs) {
     ofs << entry.first << '\n';
   }
@@ -426,16 +430,16 @@ void MergeDuplicates(const bfs::path& phrase_src_dir,
 
   // Create partition files in tmp directory.
   const bfs::path tmp_dir = phrase_dst_dir / "tmp";
-  aitools::check(bfs::create_directory(tmp_dir), __func__,
-                 error_message::cannot_create, tmp_dir);
+  util::check(bfs::create_directory(tmp_dir), __func__,
+              error_message::cannot_create, tmp_dir);
   std::vector<std::shared_ptr<bfs::ofstream> > tmp_files(
-      aitools::next_prime(std::distance(bfs::directory_iterator(phrase_src_dir),
-                                        bfs::directory_iterator())));
+      util::next_prime(std::distance(bfs::directory_iterator(phrase_src_dir),
+                                     bfs::directory_iterator())));
   for (unsigned i = 0; i != tmp_files.size(); ++i) {
-    const bfs::path ph = tmp_dir / (tmp_file_prefix + aitools::to_string(i));
+    const bfs::path ph = tmp_dir / (tmp_file_prefix + util::to_string(i));
     tmp_files[i].reset(new bfs::ofstream(ph));
-    aitools::check(tmp_files[i]->is_open(), __func__,
-                   error_message::cannot_create, ph);
+    util::check(tmp_files[i]->is_open(), __func__, error_message::cannot_create,
+                ph);
   }
   // Partition all n-grams (equal n-grams go to the same tmp file).
   std::string line;
@@ -443,14 +447,14 @@ void MergeDuplicates(const bfs::path& phrase_src_dir,
   const bfs::directory_iterator dir_end;
   for (bfs::directory_iterator it(phrase_src_dir); it != dir_end; ++it) {
     bfs::ifstream ifs(it->path());
-    aitools::check(ifs.is_open(), __func__, error_message::cannot_open,
-                   it->path());
-    aitools::log("Processing", it->path());
+    util::check(ifs.is_open(), __func__, error_message::cannot_open,
+                it->path());
+    util::log("Processing", it->path());
     while (std::getline(ifs, line)) {
       tabpos = line.find(separator);
       if (tabpos == std::string::npos)
         continue;
-      const size_t hash = aitools::hash32(line.substr(0, tabpos));
+      const size_t hash = util::hash32(line.substr(0, tabpos));
       *tmp_files[hash % tmp_files.size()] << line << '\n';
     }
   }
@@ -460,9 +464,9 @@ void MergeDuplicates(const bfs::path& phrase_src_dir,
   std::unordered_map<std::string, uint64_t> ngram_to_freq;
   for (bfs::directory_iterator dir_it(tmp_dir); dir_it != dir_end; ++dir_it) {
     bfs::ifstream ifs(dir_it->path());
-    aitools::check(ifs.is_open(), __func__, error_message::cannot_open,
-                   dir_it->path());
-    aitools::log("Processing", dir_it->path());
+    util::check(ifs.is_open(), __func__, error_message::cannot_open,
+                dir_it->path());
+    util::log("Processing", dir_it->path());
     while (std::getline(ifs, line)) {
       tabpos = line.find(separator);
       if (tabpos == std::string::npos) {
@@ -483,7 +487,7 @@ void MergeDuplicates(const bfs::path& phrase_src_dir,
         phrase_dst_dir /
         dir_it->path().filename().string().substr(4); // trim "not_" prefix
     bfs::ofstream ofs(ph);
-    aitools::check(ofs.is_open(), __func__, error_message::cannot_create, ph);
+    util::check(ofs.is_open(), __func__, error_message::cannot_create, ph);
     for (const auto& entry : ngram_to_freq) {
       ofs << entry.first << separator << entry.second << '\n';
     }

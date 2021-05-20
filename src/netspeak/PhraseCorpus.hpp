@@ -6,23 +6,25 @@
 #include <vector>
 
 #include <boost/filesystem.hpp>
+#include <boost/optional.hpp>
 
-#include "aitools/invertedindex/ByteBuffer.hpp"
-
-#include "netspeak/generated/NetspeakMessages.pb.h"
-#include "netspeak/typedefs.hpp"
+#include "netspeak/invertedindex/ByteBuffer.hpp"
+#include "netspeak/model/Phrase.hpp"
+#include "netspeak/model/typedefs.hpp"
+#include "netspeak/util/FileDescriptor.hpp"
+#include "netspeak/util/StringIdMap.hpp"
 
 namespace netspeak {
 
+using namespace model;
+
 /**
- * A class to read textual phrases (n-grams) by their id representation.
+ * A corpus that, given the id of a phrase, retrieves the text (= list of words)
+ * and the frequency of a phrase.
+ *
+ * The retrieved frequency is the actual frequency and not some modified proxy.
  */
 class PhraseCorpus {
-private:
-  typedef std::unordered_map<size_t, std::string> word_id_to_word_str;
-  typedef std::unordered_map<size_t, size_t> phrase_len_to_encoded_size;
-  typedef std::unordered_map<size_t, int> phrase_len_to_file_des;
-
 public:
   static const std::string txt_dir;
   static const std::string bin_dir;
@@ -30,48 +32,57 @@ public:
   static const std::string phrase_file;
 
   PhraseCorpus();
-
+  PhraseCorpus(const PhraseCorpus&) = delete;
   PhraseCorpus(const boost::filesystem::path& phrase_dir);
-
-  ~PhraseCorpus();
-
-  void close();
-
-  /**
-   * Returns the number of phrases with the given length.
-   */
-  size_t count_phrases(size_t phrase_len) const;
-  /**
-   * Returns the number of unique words in all phrases of any length.
-   */
-  size_t count_vocabulary() const;
 
   bool is_open() const;
 
   void open(const boost::filesystem::path& phrase_dir);
 
-  generated::Phrase read_phrase(size_t phrase_len, size_t phrase_id) const;
+  /**
+   * @brief Returns the number of words of the longest phrase in the corpus.
+   * This will return 0 if the corpus is empty.
+   */
+  Phrase::Id::Length max_length() const {
+    return max_length_;
+  };
 
-  generated::Phrase read_phrase(
-      const generated::QueryResult::PhraseRef& phrase_ref) const;
+  /**
+   * Returns the number of phrases with the given length.
+   */
+  Phrase::Count::Local count_phrases(Phrase::Id::Length phrase_len) const;
+  /**
+   * Returns the number of unique words in all phrases of any length.
+   */
+  size_t count_vocabulary() const;
 
-  std::vector<generated::Phrase> read_phrases(
-      const std::vector<std::pair<size_t, size_t> >& refs) const;
+  bool contains(const std::string& word) const;
+  bool contains(const WordId& id) const;
 
-  std::vector<generated::Phrase> read_phrases(
-      const std::vector<generated::QueryResult::PhraseRef>& phrase_refs) const;
+  std::vector<Phrase> read_phrases(
+      const std::vector<Phrase::Id>& phrase_ids) const;
 
 private:
-  generated::Phrase decode_(aitools::invertedindex::ByteBuffer& buffer,
-                            size_t phrase_id = 0) const;
+  Phrase decode_(const char* buffer, Phrase::Id phrase_id) const;
 
   void init_vocabulary_(const boost::filesystem::path& vocab_file);
 
   void open_phrase_files_(const boost::filesystem::path& phrase_dir);
 
-  word_id_to_word_str word_id_to_word_str_;
-  phrase_len_to_encoded_size phrase_len_to_encoded_size_;
-  phrase_len_to_file_des phrase_len_to_file_des_;
+
+  /**
+   * @brief This maps the id of a word to its string value and vise versa.
+   */
+  boost::optional<util::StringIdMap<WordId>> id_map;
+
+  /**
+   * @brief A map from the length of a phrase to the file descriptor of the
+   * binary phrase corpus file that hold all phrase information for that length
+   * (n-gram class).
+   */
+  std::unordered_map<Phrase::Id::Length, util::FileDescriptor> fd_map;
+
+  Phrase::Id::Length max_length_;
 };
 
 } // namespace netspeak

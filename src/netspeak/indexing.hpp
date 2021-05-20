@@ -6,10 +6,9 @@
 
 #include <boost/filesystem.hpp>
 
-#include "aitools/invertedindex/Postlist.hpp"
-
-#include "netspeak/Configurations.hpp"
-#include "netspeak/typedefs.hpp"
+#include "netspeak/Configuration.hpp"
+#include "netspeak/invertedindex/Postlist.hpp"
+#include "netspeak/model/typedefs.hpp"
 
 namespace netspeak {
 
@@ -86,8 +85,8 @@ void BuildPhraseIndex(const boost::filesystem::path& phrase_dir,
                       const boost::filesystem::path& phrase_index_dir,
                       uint64_t expected_record_count);
 
-std::vector<PostlistIndexValue> IndexPostlist(
-    const aitools::invertedindex::Postlist<PhraseIndexValue>& postlist,
+std::vector<model::PostlistIndexValue> IndexPostlist(
+    const invertedindex::Postlist<model::PhraseIndexValue>& postlist,
     std::size_t resolution);
 
 /**
@@ -108,7 +107,7 @@ void BuildPostlistIndex(const boost::filesystem::path& phrase_index_dir,
  */
 void BuildRegexVocabulary(const boost::filesystem::path& regex_vocabulary_dir,
                           const boost::filesystem::path& phrase_corpus_dir,
-                          const Configurations::Map& config);
+                          const Configuration& config);
 
 /**
  * Merges n-gram duplicates by adding their frequency values to form a set of
